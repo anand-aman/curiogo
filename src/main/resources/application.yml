@@ -32,6 +32,9 @@ app:
   click-flush-ms: 5000
   expiry-sweep-cron: "0 0 * * * *"
 
+  #Encoding mechanism:: "Sqids is planned for later phase"
+  encoder: ${APP_ENCODER:base62}
+
 management:
   endpoints:
     web:

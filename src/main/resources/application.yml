@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: curiogo
+
+  threads:
+    virtual:
+      enabled: true
+
+  # Connection details come from the environment so no secret lives in source.
+  # DB_URL / DB_USER have sensible local defaults; DB_PASSWORD has NONE on purpose
+  # (a missing password fails startup fast instead of connecting silently).
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/curiogo}
+    username: ${DB_USER:curiogo}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # Liquibase owns the schema. Hibernate only checks that the entity
+      # matches the migrated tables and never alters the database.
+      ddl-auto: validate
+      # Keep the persistence context out of the view layer (the redirect hot
+      # path should not hold an open session / transaction).
+      open-in-view: false
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+# Application-specific knobs (bound via @ConfigurationProperties later).
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  click-flush-ms: 5000
+  expiry-sweep-cron: "0 0 * * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

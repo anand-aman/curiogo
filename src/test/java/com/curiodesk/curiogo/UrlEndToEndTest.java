@@ -6,6 +6,7 @@ import com.curiodesk.curiogo.domain.Url;
 import com.curiodesk.curiogo.repository.UrlRepository;
 import com.curiodesk.curiogo.service.ClickCounter;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.testcontainers.DockerClientFactory;
+
+import java.net.http.HttpClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -33,6 +37,12 @@ class UrlEndToEndTest {
         assumeTrue(
                 DockerClientFactory.instance().isDockerAvailable(),
                 "Docker is not available - skipping the Testcontainers end-to-end test");
+    }
+
+    @BeforeEach
+    void doNotFollowRedirects() {
+        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+        rest.getRestTemplate().setRequestFactory(new JdkClientHttpRequestFactory(client));
     }
 
     @Test

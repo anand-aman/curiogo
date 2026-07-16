@@ -12,11 +12,13 @@ import com.curiodesk.curiogo.util.ReservedAliases;
 import com.curiodesk.curiogo.util.ShortCodeEncoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@Service
 public class UrlService {
     private final UrlRepository repository;
     private final ShortCodeEncoder encoder;

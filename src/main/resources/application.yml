@@ -35,6 +35,13 @@ app:
   #Encoding mechanism:: "Sqids is planned for later phase"
   encoder: ${APP_ENCODER:base62}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
 management:
   endpoints:
     web:

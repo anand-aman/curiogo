@@ -47,17 +47,20 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+        application: ${spring.application.name}
 
 logging:
   pattern:
     correlation: "[%X{correlationId:-}]"
   level:
-    root: INFO
+#    root: INFO
     com.curiodesk.curiogo: INFO
-    org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+#    org.springframework.web: INFO
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
   structured:
     format:

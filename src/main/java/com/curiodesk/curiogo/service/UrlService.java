@@ -10,6 +10,8 @@ import com.curiodesk.curiogo.exception.UrlNotFoundException;
 import com.curiodesk.curiogo.repository.UrlRepository;
 import com.curiodesk.curiogo.util.ReservedAliases;
 import com.curiodesk.curiogo.util.ShortCodeEncoder;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,16 +32,28 @@ public class UrlService {
     private final ClickCounter clickCounter;
     private final String baseUrl;
 
+    private final Counter linksCreatedCustom;
+    private final Counter linksCreatedGenerated;
+
     public UrlService(
             UrlRepository repository,
             ShortCodeEncoder encoder,
             ClickCounter clickCounter,
+            MeterRegistry meterRegistry,
             @Value("${app.base-url}") String baseUrl
     ) {
         this.repository = repository;
         this.encoder = encoder;
         this.clickCounter = clickCounter;
         this.baseUrl = baseUrl;
+        this.linksCreatedCustom = Counter.builder("curiogo.links.created")
+                .description("Short links created")
+                .tag("type", "custom")
+                .register(meterRegistry);
+        this.linksCreatedGenerated = Counter.builder("curiogo.links.created")
+                .description("Short links created")
+                .tag("type", "generated")
+                .register(meterRegistry);
     }
 
     /**
@@ -59,7 +73,7 @@ public class UrlService {
                 : createGenerated(request.url(), expiry);
 
         log.info("Created short link code={} custom-flag={} expiresAt={}", saved.getShortCode(), isCustom, saved.getExpiresAt());
-
+        (isCustom ? linksCreatedCustom : linksCreatedGenerated).increment();
         return toResponse(saved);
     }
 

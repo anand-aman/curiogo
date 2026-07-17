@@ -16,5 +16,43 @@ services:
       timeout: 5s
       retries: 5
 
+# --- Observability (Step 2) -----------------------------------------------
+# The app itself is NOT containerized yet (that is Step 13b) – it runs on the
+# host JVM at :8080. Prometheus therefore scrapes it via host.docker.internal.
+# Once the app becomes a service in this file, flip the target to "app:8080".
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: curiogo-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    extra_hosts:
+      # Lets the container resolve the host on Linux; Docker Desktop
+      # (Windows/Mac) already provides host.docker.internal.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: curiogo-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Dev-only credentials. Fine for a local learning stack; never do this in
+      # a shared environment.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      # Provisioned datasource + dashboards (no click-ops needed).
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:

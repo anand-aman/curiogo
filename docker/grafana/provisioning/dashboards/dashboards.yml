@@ -1,0 +1,14 @@
+# Tells Grafana to load any dashboard JSON dropped into the mounted folder.
+# (Phase 2, Step 2.)
+apiVersion: 1
+
+providers:
+  - name: CurioGo
+    orgId: 1
+    folder: CurioGo
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

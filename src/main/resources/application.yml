@@ -26,9 +26,6 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
-  config:
-    activate:
-          on-profile: prod
 
 # Application-specific knobs (bound via @ConfigurationProperties later).
 app:

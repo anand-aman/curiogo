@@ -10,6 +10,8 @@ import com.curiodesk.curiogo.exception.UrlNotFoundException;
 import com.curiodesk.curiogo.repository.UrlRepository;
 import com.curiodesk.curiogo.util.ReservedAliases;
 import com.curiodesk.curiogo.util.ShortCodeEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,9 @@ import java.util.UUID;
 
 @Service
 public class UrlService {
+
+    private static final Logger log =  LoggerFactory.getLogger(UrlService.class);
+
     private final UrlRepository repository;
     private final ShortCodeEncoder encoder;
     private final ClickCounter clickCounter;
@@ -45,10 +50,15 @@ public class UrlService {
     public CreateUrlResponse create(CreateUrlRequest request) {
         Instant expiry = resolveExpiry(request.expiresAt(), request.ttlSeconds());
         String alias = request.customAlias();
+        boolean isCustom = alias != null && !alias.isBlank();
 
-        Url saved = (alias != null && !alias.isBlank())
+        log.debug("Creating short link custom={} hasExpiry={}", isCustom, expiry);
+
+        Url saved = isCustom
                 ? createCustom(request.url(), alias, expiry)
                 : createGenerated(request.url(), expiry);
+
+        log.info("Created short link code={} custom-flag={} expiresAt={}", saved.getShortCode(), isCustom, saved.getExpiresAt());
 
         return toResponse(saved);
     }
@@ -61,12 +71,15 @@ public class UrlService {
      * @throws LinkExpiredException if the link exists but has expired
      */
     public String resolveToTarget(String code) {
+        log.debug("Resolving short link code={}", code);
+
         Url url = repository.findByShortCode(code)
                 .orElseThrow(() -> new UrlNotFoundException(code));
 
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
             throw new LinkExpiredException(code);
         }
+        log.debug("Resolved code={} (Click recorded)", code);
 
         clickCounter.record(code);
         return url.getOriginalUrl();
@@ -91,6 +104,7 @@ public class UrlService {
             // surfaces here as a unique-constraint violation we can translate.
             return repository.saveAndFlush(url);
         } catch (DataIntegrityViolationException race) {
+            log.debug("Custom alias '{}' lost a create race, translating to 409", alias);
             throw new AliasTakenException(alias);
         }
     }
@@ -105,8 +119,9 @@ public class UrlService {
         url.setCustom(false);
         url.setExpiresAt(expiry);
 
-        Url saved = repository.saveAndFlush(url); // phase 1: assign IDENTITY id
-        saved.setShortCode(encoder.encode(saved.getId())); // phase 2: real Base62 code
+        Url saved = repository.saveAndFlush(url);
+        saved.setShortCode(encoder.encode(saved.getId()));
+        log.debug("Generated code for Id={} -> {}", saved.getId(), saved.getShortCode());
         return repository.saveAndFlush(saved);
     }
 

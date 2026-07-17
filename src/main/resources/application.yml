@@ -26,6 +26,10 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+  config:
+    activate:
+          on-profile: prod
+
 # Application-specific knobs (bound via @ConfigurationProperties later).
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
@@ -47,3 +51,18 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}]"
+  level:
+    root: INFO
+    com.curiodesk.curiogo: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+  structured:
+    format:
+      console: ecs
+

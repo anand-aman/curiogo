@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 public record CreateUrlResponse (
-        @Schema(description = "The full short link", example = "https://curiodesk.xyz/srt")
+        @Schema(description = "The full short link", example = "http://localhost:80/srt")
         String shortUrl,
 
         @Schema(description = "The short code alone", example = "srt")

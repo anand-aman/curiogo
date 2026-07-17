@@ -10,7 +10,7 @@ import org.hibernate.validator.constraints.URL;
 import java.time.Instant;
 
 public record CreateUrlRequest (
-        @Schema(description = "The long URL to shorten", example = "https://curiodesk.xyz/very/long/path")
+        @Schema(description = "The long URL to shorten", example = "http://localhost:80/very/long/path")
         @NotBlank @URL String url,
 
         @Schema(description = "Optional custom alias to use instead of a generated code", example = "launch")

@@ -67,7 +67,7 @@ class UrlEndToEndTest {
         assertThat(persisted.getClickCount()).isZero();
 
         // 3. REDIRECT: GET /{code} returns 302 with the original URL in Location.
-        //    TestRestTemplate does not follow redirects, so we can inspect the 302 itself.
+        //    We pinned the client to NOT follow redirects (doNotFollowRedirects method)
         ResponseEntity<Void> redirect =
                 rest.exchange("/" + body.code(), HttpMethod.GET, null, Void.class);
 

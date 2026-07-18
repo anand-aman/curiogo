@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: curiogo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+        - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 # --- Observability (Step 2) -----------------------------------------------
 # The app itself is NOT containerized yet (that is Step 13b) – it runs on the
 # host JVM at :8080. Prometheus therefore scrapes it via host.docker.internal.
@@ -54,5 +67,6 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
   promdata:
   grafanadata:

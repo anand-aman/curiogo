@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -257,6 +258,44 @@ public class UrlServiceTest {
         verify(valueOps).set(eq("url:21"), eq("https://example.com"), eq(Duration.ofHours(1)));
     }
 
+    @Test
+    @DisplayName("resolve: Redis GET failure fails open – served from db, click recorded")
+    void resolveToTarget_cacheGetFails_failsOpenToDb() {
+        Url url = new Url();
+        url.setShortCode("21");
+        url.setOriginalUrl("https://example.com");
+        url.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21"))
+                .thenThrow(new RedisConnectionFailureException("redis down")); // cache down
+        when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
+
+        String target = service.resolveToTarget("21");
+
+        // Fail open: the redirect still resolves from Postgres and the click counts.
+        assertThat(target).isEqualTo("https://example.com");
+        verify(clickCounter).record("21");
+    }
+
+    @Test
+    @DisplayName("resolve: Redis SET failure on a miss never breaks the redirect")
+    void resolveToTarget_cacheSetFails_stillReturnsTarget() {
+        Url url = new Url();
+        url.setShortCode("21");
+        url.setOriginalUrl("https://example.com");
+        url.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null); // cache miss
+        when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
+        doThrow(new RedisConnectionFailureException("redis down"))
+                .when(valueOps).set(eq("url:21"), eq("https://example.com"), any(Duration.class));
+
+        String target = service.resolveToTarget("21");
+
+        // The write blew up, but the target was already resolved from the db.
+        assertThat(target).isEqualTo("https://example.com");
+        verify(clickCounter).record("21");
+    }
 
 
 }

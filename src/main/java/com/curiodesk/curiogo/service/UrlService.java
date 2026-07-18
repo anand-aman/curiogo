@@ -15,6 +15,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class UrlService {
 
     private final Counter cacheHits;
     private final Counter cacheMisses;
+    private final Counter cacheErrors;
 
     private final Counter linksCreatedCustom;
     private final Counter linksCreatedGenerated;
@@ -71,6 +73,10 @@ public class UrlService {
         this.cacheMisses = Counter.builder("curiogo.cache.access")
                 .description("Redirect cache lookups")
                 .tag("result", "miss")
+                .register(meterRegistry);
+        this.cacheErrors = Counter.builder("curiogo.cache.access")
+                .description("Redirect cache lookups")
+                .tag("result", "error")
                 .register(meterRegistry);
         this.linksCreatedCustom = Counter.builder("curiogo.links.created")
                 .description("Short links created")
@@ -113,14 +119,13 @@ public class UrlService {
     public String resolveToTarget(String code) {
         log.debug("Resolving short link code={}", code);
 
-        String cached = redis.opsForValue().get(URL_KEY_PREFIX + code);
+        String cached = cacheGet(code);
         if (cached != null) {
             cacheHits.increment();
             clickCounter.record(code);
             log.debug("Cache hit code {} (click recorded)", code);
             return cached;
         }
-        cacheMisses.increment();
 
         Url url = repository.findByShortCode(code)
                 .orElseThrow(() -> new UrlNotFoundException(code));
@@ -136,13 +141,32 @@ public class UrlService {
     }
 
     // ---Cache---
+    private String cacheGet(String code) {
+        try{
+            String cached = redis.opsForValue().get(URL_KEY_PREFIX + code);
+            if(cached != null) {
+                cacheMisses.increment();
+            }
+            return cached;
+        } catch (DataAccessException e) {
+            cacheErrors.increment();
+            log.error("Redis GET failed, failing open to db code={} corrId={}:", code, UUID.randomUUID(), e);
+            return null;
+        }
+    }
+
     private void maybeCache(String code, Url url) {
         Duration ttl = cacheTtl(url.getExpiresAt());
         if(ttl.isZero() || ttl.isNegative()) {
             return;
         }
-        redis.opsForValue().set(URL_KEY_PREFIX + code, url.getOriginalUrl(), ttl);
-        log.debug("Cached code={} ttl={}", code, ttl);
+        try {
+            redis.opsForValue().set(URL_KEY_PREFIX + code, url.getOriginalUrl(), ttl);
+            log.debug("Cached code={} ttl={}", code, ttl);
+        } catch (DataAccessException e) {
+            cacheErrors.increment();
+            log.error("Redis SET failed, skipping cache write code={} corrId={}:", code, UUID.randomUUID(), e);
+        }
     }
 
     private Duration cacheTtl(Instant expiresAt) {

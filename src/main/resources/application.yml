@@ -68,7 +68,7 @@ logging:
 # Application-specific knobs (bound via @ConfigurationProperties later).
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
-  click-flush-ms: 5000
+  click-flush-ms: 60000
   expiry-sweep-cron: "0 0 * * * *"
 
   encoder: ${APP_ENCODER:base62} #Encoding mechanism:: "Sqids is planned for later phase"

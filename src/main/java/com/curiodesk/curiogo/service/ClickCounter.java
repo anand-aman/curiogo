@@ -30,7 +30,7 @@ public class ClickCounter {
      * mid-flush recreates a fresh adder under the same key and is simply counted
      * in the next window -- no clicks are silently dropped.
      */
-    @Scheduled(fixedDelayString = "${app.click-flush-ms:5000}")
+    @Scheduled(fixedDelayString = "${app.click-flush-ms:60000}")
     @Transactional
     public void flush() {
         for (String code : buffer.keySet()) {

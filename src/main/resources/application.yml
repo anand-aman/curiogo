@@ -31,16 +31,6 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-
-# Application-specific knobs (bound via @ConfigurationProperties later).
-app:
-  base-url: ${APP_BASE_URL:http://localhost:8080}
-  click-flush-ms: 5000
-  expiry-sweep-cron: "0 0 * * * *"
-
-  #Encoding mechanism:: "Sqids is planned for later phase"
-  encoder: ${APP_ENCODER:base62}
-
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -73,4 +63,18 @@ logging:
   structured:
     format:
       console: ecs
+
+
+# Application-specific knobs (bound via @ConfigurationProperties later).
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  click-flush-ms: 5000
+  expiry-sweep-cron: "0 0 * * * *"
+
+  encoder: ${APP_ENCODER:base62} #Encoding mechanism:: "Sqids is planned for later phase"
+
+  cache:
+    ttl-non-expiring: ${CACHE_TTL_NON_EXPIRING:1h}
+    ttl-expiring-cap: ${CACHE_TTL_EXPIRING:1h}
+
 

@@ -16,9 +16,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -27,10 +29,19 @@ public class UrlService {
 
     private static final Logger log =  LoggerFactory.getLogger(UrlService.class);
 
+    private static final String URL_KEY_PREFIX = "url:";
+
     private final UrlRepository repository;
     private final ShortCodeEncoder encoder;
     private final ClickCounter clickCounter;
+    private final StringRedisTemplate redis;
     private final String baseUrl;
+
+    private final Duration ttlNonExpiring;
+    private final Duration ttlExpiringCap;
+
+    private final Counter cacheHits;
+    private final Counter cacheMisses;
 
     private final Counter linksCreatedCustom;
     private final Counter linksCreatedGenerated;
@@ -40,12 +51,27 @@ public class UrlService {
             ShortCodeEncoder encoder,
             ClickCounter clickCounter,
             MeterRegistry meterRegistry,
-            @Value("${app.base-url}") String baseUrl
-    ) {
+            StringRedisTemplate redis,
+            @Value("${app.base-url}") String baseUrl,
+            @Value("${app.cache.ttl-non-expiring:1h}")Duration ttlNonExpiring,
+            @Value("${app.cache.ttl-expiring-cap:1h}") Duration ttlExpiringCap
+            ) {
         this.repository = repository;
         this.encoder = encoder;
         this.clickCounter = clickCounter;
+        this.redis = redis;
         this.baseUrl = baseUrl;
+        this.ttlNonExpiring = ttlNonExpiring;
+        this.ttlExpiringCap = ttlExpiringCap;
+
+        this.cacheHits = Counter.builder("curiogo.cache.access")
+                .description("Redirect cache lookups")
+                .tag("result", "hit")
+                .register(meterRegistry);
+        this.cacheMisses = Counter.builder("curiogo.cache.access")
+                .description("Redirect cache lookups")
+                .tag("result", "miss")
+                .register(meterRegistry);
         this.linksCreatedCustom = Counter.builder("curiogo.links.created")
                 .description("Short links created")
                 .tag("type", "custom")
@@ -87,16 +113,46 @@ public class UrlService {
     public String resolveToTarget(String code) {
         log.debug("Resolving short link code={}", code);
 
+        String cached = redis.opsForValue().get(URL_KEY_PREFIX + code);
+        if (cached != null) {
+            cacheHits.increment();
+            clickCounter.record(code);
+            log.debug("Cache hit code {} (click recorded)", code);
+            return cached;
+        }
+        cacheMisses.increment();
+
         Url url = repository.findByShortCode(code)
                 .orElseThrow(() -> new UrlNotFoundException(code));
 
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
             throw new LinkExpiredException(code);
         }
-        log.debug("Resolved code={} (Click recorded)", code);
 
         clickCounter.record(code);
+        maybeCache(code, url);
+        log.debug("Cache miss code={} (Served from DB, Click recorded)", code);
         return url.getOriginalUrl();
+    }
+
+    // ---Cache---
+    private void maybeCache(String code, Url url) {
+        Duration ttl = cacheTtl(url.getExpiresAt());
+        if(ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        redis.opsForValue().set(URL_KEY_PREFIX + code, url.getOriginalUrl(), ttl);
+        log.debug("Cached code={} ttl={}", code, ttl);
+    }
+
+    private Duration cacheTtl(Instant expiresAt) {
+        if (expiresAt == null) {
+            return ttlNonExpiring;
+        }
+
+        // For expiring link: TTL is minimum of remaining duration
+        Duration remaining = Duration.between(Instant.now(), expiresAt);
+        return remaining.compareTo(ttlExpiringCap) > 0 ?  ttlExpiringCap : remaining;
     }
 
     private Url createCustom(String originalUrl, String alias, Instant expiry) {

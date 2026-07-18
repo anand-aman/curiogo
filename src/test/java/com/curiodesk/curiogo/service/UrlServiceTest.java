@@ -17,7 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -35,12 +38,15 @@ public class UrlServiceTest {
     @Mock private UrlRepository repository;
     @Mock private ShortCodeEncoder encoder;
     @Mock private ClickCounter clickCounter;
+    @Mock private StringRedisTemplate redis;
+    @Mock private ValueOperations<String, String> valueOps;
 
     private  UrlService service;
 
     @BeforeEach
     public void setUp() {
-        service = new UrlService(repository, encoder, clickCounter, new SimpleMeterRegistry(), BASE_URL);
+        service = new UrlService(repository, encoder, clickCounter, new SimpleMeterRegistry(),
+                redis, BASE_URL, Duration.ofHours(1), Duration.ofHours(1));
     }
 
     @Test
@@ -147,6 +153,8 @@ public class UrlServiceTest {
         url.setShortCode("21");
         url.setOriginalUrl("https://example.com");
         url.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null);
         when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
 
         String target = service.resolveToTarget("21");
@@ -158,6 +166,8 @@ public class UrlServiceTest {
     @Test
     @DisplayName("resolve: unknown code -> UrlNotFoundException, no click")
     void resolveToTarget_notFound_throws() {
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:nope")).thenReturn(null);
         when(repository.findByShortCode("nope")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resolveToTarget("nope"))
@@ -173,6 +183,8 @@ public class UrlServiceTest {
         url.setShortCode("21");
         url.setOriginalUrl("https://example.com");
         url.setExpiresAt(Instant.now().minusSeconds(1));
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null);
         when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
 
         assertThatThrownBy(() -> service.resolveToTarget("21"))
@@ -180,6 +192,71 @@ public class UrlServiceTest {
 
         verify(clickCounter, never()).record(any());
     }
+
+    @Test
+    @DisplayName("resolve: cache miss caches the target with a bounded TTL")
+    void resolveToTarget_miss_recordsClickAndCaches() {
+        Url url = new Url();
+        url.setShortCode("21");
+        url.setOriginalUrl("https://example.com");
+        url.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null); // cache miss
+        when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
+
+        String target = service.resolveToTarget("21");
+
+        assertThat(target).isEqualTo("https://example.com");
+        verify(clickCounter).record("21");
+        // no admission gate: every miss caches (TTL capped at 1h)
+        verify(valueOps).set("url:21", "https://example.com", Duration.ofHours(1));
+    }
+
+    @Test
+    @DisplayName("resolve: cache hit serves target without touching the database")
+    void resolveToTarget_cacheHit_servesFromCache() {
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn("https://example.com");
+
+        String target = service.resolveToTarget("21");
+
+        assertThat(target).isEqualTo("https://example.com");
+        verify(clickCounter).record("21");
+        verify(repository, never()).findByShortCode(any());
+    }
+
+    @Test
+    @DisplayName("resolve: non-expiring link is cached with the flat 1h TTL")
+    void resolveToTarget_nonExpiring_cachedFor1h() {
+        Url url = new Url();
+        url.setShortCode("21");
+        url.setOriginalUrl("https://example.com");
+        url.setExpiresAt(null); // never expires
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null);
+        when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
+
+        service.resolveToTarget("21");
+
+        verify(valueOps).set("url:21", "https://example.com", Duration.ofHours(1));
+    }
+
+    @Test
+    @DisplayName("resolve: far-future-expiry link has its TTL capped at 1h")
+    void resolveToTarget_expiring_ttlCappedAt1h() {
+        Url url = new Url();
+        url.setShortCode("21");
+        url.setOriginalUrl("https://example.com");
+        url.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS)); // remaining >> cap
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:21")).thenReturn(null);
+        when(repository.findByShortCode("21")).thenReturn(Optional.of(url));
+
+        service.resolveToTarget("21");
+
+        verify(valueOps).set(eq("url:21"), eq("https://example.com"), eq(Duration.ofHours(1)));
+    }
+
 
 
 }

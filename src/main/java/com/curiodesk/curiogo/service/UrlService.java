@@ -150,7 +150,7 @@ public class UrlService {
             return cached;
         } catch (DataAccessException e) {
             cacheErrors.increment();
-            log.error("Redis GET failed, failing open to db code={} corrId={}:", code, UUID.randomUUID(), e);
+            log.warn("Redis GET failed, failing open to db code={} corrId={}:", code, UUID.randomUUID(), e);
             return null;
         }
     }
@@ -165,7 +165,7 @@ public class UrlService {
             log.debug("Cached code={} ttl={}", code, ttl);
         } catch (DataAccessException e) {
             cacheErrors.increment();
-            log.error("Redis SET failed, skipping cache write code={} corrId={}:", code, UUID.randomUUID(), e);
+            log.warn("Redis SET failed, skipping cache write code={} corrId={}:", code, UUID.randomUUID(), e);
         }
     }
 

@@ -77,4 +77,10 @@ app:
     ttl-non-expiring: ${CACHE_TTL_NON_EXPIRING:1h}
     ttl-expiring-cap: ${CACHE_TTL_EXPIRING:1h}
 
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    capacity: ${RATE_LIMIT_CAPACITY:10}
+    refill-tokens: ${RATE_LIMIT_REFILL_TOKENS:10}
+    refill-period: ${RATE_LIMIT_REFILL_PERIOD:1m}
+
 

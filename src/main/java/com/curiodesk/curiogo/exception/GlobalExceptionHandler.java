@@ -34,6 +34,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiError> handleRateLimited(RateLimitExceededException ex, HttpServletRequest req) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), req);
+    }
+
     /** Mutually-exclusive expiry inputs, or any other bad argument from the service. */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleBadArgument(IllegalArgumentException ex, HttpServletRequest req) {

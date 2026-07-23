@@ -22,6 +22,7 @@
         <java.version>21</java.version>
         <springdoc.version>2.8.9</springdoc.version>
         <maven.compiler.release>21</maven.compiler.release>
+        <bucket4j.version>8.7.0</bucket4j.version>
     </properties>
 
     <dependencies>
@@ -82,6 +83,19 @@
             <artifactId>lombok</artifactId>
             <version>1.18.30</version>
             <optional>true</optional>
+        </dependency>
+
+        <!-- Rate Limiting.        -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-redis</artifactId>
+            <version>${bucket4j.version}</version>
         </dependency>
 
         <!-- Test dependencies -->

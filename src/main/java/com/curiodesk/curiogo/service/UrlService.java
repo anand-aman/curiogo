@@ -10,6 +10,7 @@ import com.curiodesk.curiogo.exception.UrlNotFoundException;
 import com.curiodesk.curiogo.repository.UrlRepository;
 import com.curiodesk.curiogo.util.ReservedAliases;
 import com.curiodesk.curiogo.util.ShortCodeEncoder;
+import com.curiodesk.curiogo.util.UrlSafetyValidator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class UrlService {
     private final ShortCodeEncoder encoder;
     private final ClickCounter clickCounter;
     private final StringRedisTemplate redis;
+    private final UrlSafetyValidator urlSafetyValidator;
     private final String baseUrl;
 
     private final Duration ttlNonExpiring;
@@ -54,6 +56,7 @@ public class UrlService {
             ClickCounter clickCounter,
             MeterRegistry meterRegistry,
             StringRedisTemplate redis,
+            UrlSafetyValidator urlSafetyValidator,
             @Value("${app.base-url}") String baseUrl,
             @Value("${app.cache.ttl-non-expiring:1h}")Duration ttlNonExpiring,
             @Value("${app.cache.ttl-expiring-cap:1h}") Duration ttlExpiringCap
@@ -63,6 +66,7 @@ public class UrlService {
         this.clickCounter = clickCounter;
         this.redis = redis;
         this.baseUrl = baseUrl;
+        this.urlSafetyValidator = urlSafetyValidator;
         this.ttlNonExpiring = ttlNonExpiring;
         this.ttlExpiringCap = ttlExpiringCap;
 
@@ -94,6 +98,7 @@ public class UrlService {
      */
     @Transactional
     public CreateUrlResponse create(CreateUrlRequest request) {
+        urlSafetyValidator.validate(request.url());
         Instant expiry = resolveExpiry(request.expiresAt(), request.ttlSeconds());
         String alias = request.customAlias();
         boolean isCustom = alias != null && !alias.isBlank();

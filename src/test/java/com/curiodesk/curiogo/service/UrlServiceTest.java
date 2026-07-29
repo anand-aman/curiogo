@@ -9,6 +9,7 @@ import com.curiodesk.curiogo.exception.ReservedAliasException;
 import com.curiodesk.curiogo.exception.UrlNotFoundException;
 import com.curiodesk.curiogo.repository.UrlRepository;
 import com.curiodesk.curiogo.util.ShortCodeEncoder;
+import com.curiodesk.curiogo.util.UrlSafetyValidator;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,8 +47,17 @@ public class UrlServiceTest {
 
     @BeforeEach
     public void setUp() {
-        service = new UrlService(repository, encoder, clickCounter, new SimpleMeterRegistry(),
-                redis, BASE_URL, Duration.ofHours(1), Duration.ofHours(1));
+        service = new UrlService(
+                repository,
+                encoder,
+                clickCounter,
+                new SimpleMeterRegistry(),
+                redis,
+                new UrlSafetyValidator(false),
+                BASE_URL,
+                Duration.ofHours(1),
+                Duration.ofHours(1)
+        );
     }
 
     @Test

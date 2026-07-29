@@ -83,4 +83,10 @@ app:
     refill-tokens: ${RATE_LIMIT_REFILL_TOKENS:10}
     refill-period: ${RATE_LIMIT_REFILL_PERIOD:1m}
 
+# URL Safety guard on Link Creation
+  url-safety:
+    allow-private-targets: ${URL_SAFETY_ALLOW_PRIVATE_TARGETS:false}
+
+
+
 
